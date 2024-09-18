@@ -1,0 +1,120 @@
+<h1 class="title">To Do List</h1>
+<%= stylesheet_link_tag 'tasks', media: 'all' %>
+
+<%= form_with model: @task, local: true, html: { id: 'task-form' }  do |form| %>
+  <div class="addTask">
+    <%= form.label :name %>
+    <%= form.text_field :name, class: 'custom-input', id: 'task-name' %>
+    <%= form.submit 'Add Task', class: 'custom-submit' %>
+  </div>
+<% end %>
+
+<div class="todoBody">
+  <div id="todo" class="panel">
+    <h2>To Do</h2>
+    <ul id="todo-list">
+      <% @tasks.each do |task| %>
+        <li id="task_<%= task.id %>" draggable="true" ondragstart="drag(event)">
+          <div class="card">
+            <div>
+              <input type="checkbox" onchange="updateTask(<%= task.id %>, this.checked)" <%= 'checked' if task.completed %> />
+              <%= task.name %>
+            </div>
+            <%= button_to 'Delete', task_path(task), method: :delete, data: { confirm: 'Are you sure?' } %>
+          </div>
+        </li>
+      <% end %>
+    </ul>
+  </div>
+
+  <div id="done" class="panel">
+    <h2>Done</h2>
+    <ul id="done-list">
+      <% @completed_tasks.each do |task| %>
+        <li id="task_<%= task.id %>" draggable="true" ondragstart="drag(event)">
+          <div class="card">
+            <div>
+              <input type="checkbox" onchange="updateTask(<%= task.id %>, this.checked)" <%= 'checked' if task.completed %> />
+              <%= task.name %>
+            </div>
+            <%= button_to 'Delete', task_path(task), method: :delete, data: { confirm: 'Are you sure?' } %>
+          </div>
+        </li>
+      <% end %>
+    </ul>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('task-form');
+  const nameField = document.getElementById('task-name');
+  
+  form.addEventListener('submit', (event) => {
+    if (nameField.value.trim() === '') {
+      alert('Task name cannot be empty.');
+      event.preventDefault(); // Prevent form submission
+    }
+  });
+});
+
+function drag(ev) {
+    ev.dataTransfer.setData("text", ev.target.id);
+    ev.dataTransfer.setData("panel", ev.target.parentNode.id);
+}
+
+function handleDrop(ev, targetPanelId) {
+    ev.preventDefault();
+    const data = ev.dataTransfer.getData("text");
+    const sourcePanelId = ev.dataTransfer.getData("panel");
+    if (sourcePanelId === targetPanelId) {
+      // Prevent dropping if the source and target panels are the same
+      return;
+    }
+
+    const taskId = data.split('_')[1];
+    updateTask(taskId, targetPanelId === 'done-list'); // Mark task as completed or not completed
+}
+
+document.getElementById("done").addEventListener("dragover", function(ev) {
+  ev.preventDefault();
+});
+
+document.getElementById("todo").addEventListener("dragover", function(ev) {
+  ev.preventDefault();
+});
+
+document.getElementById("done").addEventListener("drop", function(ev) {
+  handleDrop(ev, 'done-list');
+});
+
+document.getElementById("todo").addEventListener("drop", function(ev) {
+  handleDrop(ev, 'todo-list');
+});
+
+function updateTask(taskId, isChecked) {
+  fetch(`/tasks/${taskId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+    },
+    body: JSON.stringify({ task: { completed: isChecked } })
+  })
+  .then(response => {
+    if (response.ok) {
+      const taskElement = document.getElementById(`task_${taskId}`);
+      const checkbox = taskElement.querySelector('input[type="checkbox"]');
+      checkbox.checked = isChecked;
+      if (isChecked) {
+        document.getElementById('done-list').appendChild(taskElement);
+      } else {
+        document.getElementById('todo-list').appendChild(taskElement);
+      }
+    } else {
+      console.error('Failed to update task');
+    }
+  })
+  .catch((error) => console.error('Error:', error));
+}
+</script>
